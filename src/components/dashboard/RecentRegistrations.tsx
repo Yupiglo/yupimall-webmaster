@@ -31,7 +31,7 @@ export default function RecentRegistrations() {
     const fetchUsers = async () => {
       try {
         const response = await axiosInstance.get("users");
-        const allUsers = response.data.getAllUsers || response.data || [];
+        const allUsers = response.data.getAllUsers || response.data.users || response.data;
 
         // Safety check to ensure allUsers is an array
         if (!Array.isArray(allUsers)) {

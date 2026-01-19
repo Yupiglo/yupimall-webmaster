@@ -11,6 +11,7 @@ import {
   CardContent,
   Avatar,
   Grid,
+  CircularProgress,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -18,40 +19,92 @@ import {
   Logout as ExitIcon,
   LocalShipping as ShippingIcon,
   History as HistoryIcon,
-  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
 } from "@mui/icons-material";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AddExitModal from "./AddExitModal";
+import axios from "@/lib/axios";
 
-const exitsStats = [
-  {
-    id: 1,
-    label: "Total Exits (Today)",
-    value: "28",
-    growth: "+8.4%",
-    icon: <ExitIcon />,
-    color: "primary",
-  },
-  {
-    id: 2,
-    label: "Items Shipped",
-    value: "840",
-    growth: "+15.2%",
-    icon: <ShippingIcon />,
-    color: "success",
-  },
-  {
-    id: 3,
-    label: "Recent Activity",
-    value: "5m ago",
-    growth: "Active",
-    icon: <HistoryIcon />,
-    color: "warning",
-  },
-];
+interface ExitsStats {
+  total_exits: number;
+  today_exits: number;
+  today_quantity: number;
+  this_month_exits: number;
+  this_month_quantity: number;
+  by_reason: Record<string, number>;
+}
 
-export default function ExitsHeader() {
+interface ExitsHeaderProps {
+  onSearch?: (query: string) => void;
+  onExitAdded?: () => void;
+}
+
+export default function ExitsHeader({ onSearch, onExitAdded }: ExitsHeaderProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [stats, setStats] = useState<ExitsStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [searchValue, setSearchValue] = useState("");
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get("/stock/exits/stats");
+      setStats(response.data);
+    } catch (err) {
+      console.error("Error fetching exit stats:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchValue(value);
+    onSearch?.(value);
+  };
+
+  const handleModalClose = (exitAdded?: boolean) => {
+    setIsModalOpen(false);
+    if (exitAdded) {
+      fetchStats();
+      onExitAdded?.();
+    }
+  };
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat("fr-FR").format(num);
+  };
+
+  const exitsStats = [
+    {
+      id: 1,
+      label: "Today's Exits",
+      value: loading ? "-" : stats?.today_exits.toString() || "0",
+      subValue: loading ? "" : `${formatNumber(stats?.today_quantity || 0)} items`,
+      icon: <ExitIcon />,
+      color: "primary",
+    },
+    {
+      id: 2,
+      label: "This Month",
+      value: loading ? "-" : stats?.this_month_exits.toString() || "0",
+      subValue: loading ? "" : `${formatNumber(stats?.this_month_quantity || 0)} items`,
+      icon: <ShippingIcon />,
+      color: "success",
+    },
+    {
+      id: 3,
+      label: "Total Exits",
+      value: loading ? "-" : formatNumber(stats?.total_exits || 0),
+      subValue: "All time",
+      icon: <HistoryIcon />,
+      color: "warning",
+    },
+  ];
 
   return (
     <Box sx={{ mb: 4 }}>
@@ -131,7 +184,7 @@ export default function ExitsHeader() {
                         color: `${stat.color}.tertio`,
                       }}
                     >
-                      {stat.icon}
+                      {loading ? <CircularProgress size={24} /> : stat.icon}
                     </Avatar>
                     <Box sx={{ flexGrow: 1 }}>
                       <Typography
@@ -154,16 +207,16 @@ export default function ExitsHeader() {
                           alignItems="center"
                           spacing={0.5}
                         >
-                          <TrendingUpIcon
-                            color="success"
+                          <TrendingDownIcon
+                            color="error"
                             sx={{ fontSize: 14 }}
                           />
                           <Typography
                             variant="caption"
                             fontWeight="bold"
-                            color="success.main"
+                            color="error.main"
                           >
-                            {stat.growth}
+                            {stat.subValue}
                           </Typography>
                         </Stack>
                       </Stack>
@@ -177,9 +230,11 @@ export default function ExitsHeader() {
       </Box>
 
       <TextField
-        placeholder="Search exits, products, or destinations..."
+        placeholder="Search exits, products, or reasons..."
         variant="outlined"
         fullWidth
+        value={searchValue}
+        onChange={handleSearch}
         slotProps={{
           input: {
             startAdornment: (
@@ -197,7 +252,7 @@ export default function ExitsHeader() {
         }}
       />
 
-      <AddExitModal open={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <AddExitModal open={isModalOpen} onClose={handleModalClose} />
     </Box>
   );
 }

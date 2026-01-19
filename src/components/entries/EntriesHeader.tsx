@@ -11,6 +11,7 @@ import {
   CardContent,
   Avatar,
   Grid,
+  CircularProgress,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -20,38 +21,90 @@ import {
   History as HistoryIcon,
   TrendingUp as TrendingUpIcon,
 } from "@mui/icons-material";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AddEntryModal from "./AddEntryModal";
+import axios from "@/lib/axios";
 
-const entriesStats = [
-  {
-    id: 1,
-    label: "Total Entries (Today)",
-    value: "45",
-    growth: "+12.5%",
-    icon: <EntryIcon />,
-    color: "primary",
-  },
-  {
-    id: 2,
-    label: "Items Received",
-    value: "1,240",
-    growth: "+5.2%",
-    icon: <InventoryIcon />,
-    color: "success",
-  },
-  {
-    id: 3,
-    label: "Recent Activity",
-    value: "12m ago",
-    growth: "Active",
-    icon: <HistoryIcon />,
-    color: "warning",
-  },
-];
+interface EntriesStats {
+  total_entries: number;
+  today_entries: number;
+  today_quantity: number;
+  this_month_entries: number;
+  this_month_quantity: number;
+  total_value: number;
+}
 
-export default function EntriesHeader() {
+interface EntriesHeaderProps {
+  onSearch?: (query: string) => void;
+  onEntryAdded?: () => void;
+}
+
+export default function EntriesHeader({ onSearch, onEntryAdded }: EntriesHeaderProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [stats, setStats] = useState<EntriesStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [searchValue, setSearchValue] = useState("");
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get("/stock/entries/stats");
+      setStats(response.data);
+    } catch (err) {
+      console.error("Error fetching entry stats:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchValue(value);
+    onSearch?.(value);
+  };
+
+  const handleModalClose = (entryAdded?: boolean) => {
+    setIsModalOpen(false);
+    if (entryAdded) {
+      fetchStats();
+      onEntryAdded?.();
+    }
+  };
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat("fr-FR").format(num);
+  };
+
+  const entriesStats = [
+    {
+      id: 1,
+      label: "Today's Entries",
+      value: loading ? "-" : stats?.today_entries.toString() || "0",
+      subValue: loading ? "" : `${formatNumber(stats?.today_quantity || 0)} items`,
+      icon: <EntryIcon />,
+      color: "primary",
+    },
+    {
+      id: 2,
+      label: "This Month",
+      value: loading ? "-" : stats?.this_month_entries.toString() || "0",
+      subValue: loading ? "" : `${formatNumber(stats?.this_month_quantity || 0)} items`,
+      icon: <InventoryIcon />,
+      color: "success",
+    },
+    {
+      id: 3,
+      label: "Total Entries",
+      value: loading ? "-" : formatNumber(stats?.total_entries || 0),
+      subValue: "All time",
+      icon: <HistoryIcon />,
+      color: "warning",
+    },
+  ];
 
   return (
     <Box sx={{ mb: 4 }}>
@@ -132,7 +185,7 @@ export default function EntriesHeader() {
                         color: `${stat.color}.tertio`,
                       }}
                     >
-                      {stat.icon}
+                      {loading ? <CircularProgress size={24} /> : stat.icon}
                     </Avatar>
                     <Box sx={{ flexGrow: 1 }}>
                       <Typography
@@ -164,7 +217,7 @@ export default function EntriesHeader() {
                             fontWeight="bold"
                             color="success.main"
                           >
-                            {stat.growth}
+                            {stat.subValue}
                           </Typography>
                         </Stack>
                       </Stack>
@@ -181,6 +234,8 @@ export default function EntriesHeader() {
         placeholder="Search entries, products, or suppliers..."
         variant="outlined"
         fullWidth
+        value={searchValue}
+        onChange={handleSearch}
         slotProps={{
           input: {
             startAdornment: (
@@ -198,7 +253,7 @@ export default function EntriesHeader() {
         }}
       />
 
-      <AddEntryModal open={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <AddEntryModal open={isModalOpen} onClose={handleModalClose} />
     </Box>
   );
 }

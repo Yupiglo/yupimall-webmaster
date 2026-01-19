@@ -40,7 +40,6 @@ const navItems = [
   { name: "Delivery", href: "/delivery", icon: <DeliveriesIcon /> },
   { name: "Customers", href: "/customers", icon: <CustomersIcon /> },
   { name: "Notifications", href: "/notifications", icon: <NotificationsIcon /> },
-  { name: "System Logs", href: "/logs", icon: <LogsIcon /> },
   { name: "Profile", href: "/profile", icon: <ProfileIcon /> },
 ];
 
