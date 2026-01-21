@@ -134,7 +134,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         signIn: "/login",
         signOut: "/logout",
     },
-    trustHost: true,
     session: { strategy: "jwt" },
     cookies: {
         sessionToken: {
