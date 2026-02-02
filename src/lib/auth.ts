@@ -114,6 +114,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                             id: response.data.user.id.toString(),
                             name: response.data.user.username,
                             email: response.data.user.email,
+                            image: response.data.user.image_url || response.data.user.avatar_url,
                             access: response.data.user.token,
                             refresh: response.data.user.token,
                             role: response.data.user.role,
@@ -138,6 +139,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                     expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 Days
                     role: user.role,
                     country: user.country,
+                    image: user.image,
                     user,
                 };
             }
@@ -155,6 +157,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             if (session.user) {
                 session.user.role = token.role as string;
                 session.user.country = token.country as string;
+                session.user.image = token.image as string;
             }
             return session;
         },
