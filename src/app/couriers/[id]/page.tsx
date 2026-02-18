@@ -14,6 +14,8 @@ import {
   Chip,
   Divider,
   Grid,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   ArrowBack as BackIcon,
@@ -24,18 +26,7 @@ import {
   Stars as RatingIcon,
   Speed as PerformanceIcon,
 } from "@mui/icons-material";
-
-const couriers = [
-  {
-    id: "#COU-101",
-    name: "John Doe",
-    vehicle: "Motorcycle",
-    phone: "+1 555-0201",
-    plate: "ABC-1234",
-    status: "Active",
-    rating: 4.8,
-  },
-];
+import { useCourierDetail } from "@/hooks/useDeliveries";
 
 export default function CourierDetailPage({
   params,
@@ -46,9 +37,28 @@ export default function CourierDetailPage({
   const resolvedParams = use(params);
   const { id } = resolvedParams;
   const decodedId = decodeURIComponent(id);
+  const { courier, loading, error } = useCourierDetail(decodedId);
 
-  // Mock finding courier by ID
-  const courier = couriers.find((c) => c.id === decodedId) || couriers[0];
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error || !courier) {
+    return (
+      <Box sx={{ flexGrow: 1 }}>
+        <Alert severity="error" sx={{ borderRadius: "16px", mb: 2 }}>
+          {error || "Courier not found"}
+        </Alert>
+        <Button onClick={() => router.push("/couriers")} variant="outlined">
+          Back to Couriers
+        </Button>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -123,10 +133,10 @@ export default function CourierDetailPage({
                   {courier.name}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {courier.id}
+                  #{courier.id}
                 </Typography>
                 <Chip
-                  label={courier.status}
+                  label={courier.status || "Unknown"}
                   color="success"
                   size="small"
                   sx={{ mt: 2, fontWeight: "bold", borderRadius: "6px" }}
@@ -164,25 +174,7 @@ export default function CourierDetailPage({
                         Vehicle Type
                       </Typography>
                       <Typography variant="body2" fontWeight="medium">
-                        {courier.vehicle}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                  <Stack direction="row" spacing={1.5} alignItems="center">
-                    <PlateIcon sx={{ color: "text.secondary", fontSize: 20 }} />
-                    <Box>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        display="block"
-                      >
-                        License Plate
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontFamily: "monospace", fontWeight: "bold" }}
-                      >
-                        {courier.plate}
+                        {courier.vehicle || "N/A"}
                       </Typography>
                     </Box>
                   </Stack>
@@ -197,7 +189,22 @@ export default function CourierDetailPage({
                         Phone
                       </Typography>
                       <Typography variant="body2" fontWeight="medium">
-                        {courier.phone}
+                        {courier.phone || "N/A"}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <VehicleIcon sx={{ color: "text.secondary", fontSize: 20 }} />
+                    <Box>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        display="block"
+                      >
+                        Email
+                      </Typography>
+                      <Typography variant="body2" fontWeight="medium">
+                        {courier.email || "N/A"}
                       </Typography>
                     </Box>
                   </Stack>
@@ -211,21 +218,21 @@ export default function CourierDetailPage({
           <Grid container spacing={3}>
             {[
               {
-                label: "Courier Rating",
-                value: `${courier.rating}/5.0`,
-                icon: <RatingIcon />,
-                color: "warning.main",
-              },
-              {
-                label: "Deliveries Today",
-                value: "8",
+                label: "Total Deliveries",
+                value: (courier.totalDeliveries || courier.active_deliveries || 0).toString(),
                 icon: <VehicleIcon />,
                 color: "primary.main",
               },
               {
-                label: "Performance",
-                value: "98%",
+                label: "Active Deliveries",
+                value: (courier.active_deliveries || 0).toString(),
                 icon: <PerformanceIcon />,
+                color: "info.main",
+              },
+              {
+                label: "Status",
+                value: courier.status || "Unknown",
+                icon: <RatingIcon />,
                 color: "success.main",
               },
             ].map((stat, idx) => (

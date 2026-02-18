@@ -1,48 +1,51 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import WidgetList, { WidgetItem } from "./WidgetList";
-
-const topCouriers: WidgetItem[] = [
-  {
-    id: 1,
-    title: "Mike Ross",
-    subtitle: "⭐ 4.9 • 320 Deliveries",
-    value: "Online",
-    image: "https://i.pravatar.cc/150?u=mikeross",
-    badge: "Top Rated",
-    badgeColor: "warning",
-  },
-  {
-    id: 2,
-    title: "Harvey Specter",
-    subtitle: "⭐ 4.8 • 290 Deliveries",
-    value: "Busy",
-    image: "https://i.pravatar.cc/150?u=harvey",
-  },
-  {
-    id: 3,
-    title: "Rachel Zane",
-    subtitle: "⭐ 4.9 • 250 Deliveries",
-    value: "Offline",
-    image: "https://i.pravatar.cc/150?u=rachel",
-  },
-  {
-    id: 4,
-    title: "Louis Litt",
-    subtitle: "⭐ 4.7 • 210 Deliveries",
-    value: "Online",
-    image: "https://i.pravatar.cc/150?u=louis",
-  },
-  {
-    id: 5,
-    title: "Donna Paulsen",
-    subtitle: "⭐ 5.0 • 180 Deliveries",
-    value: "Online",
-    image: "https://i.pravatar.cc/150?u=donna",
-  },
-];
+import { useDeliveryPersonnel } from "@/hooks/useDeliveries";
+import { CircularProgress, Box } from "@mui/material";
 
 export default function TopCouriers() {
+  const { personnel, loading } = useDeliveryPersonnel();
+  const [topCouriers, setTopCouriers] = useState<WidgetItem[]>([]);
+
+  useEffect(() => {
+    if (personnel.length > 0) {
+      // Sort by total deliveries (or active deliveries) and take top 5
+      const sorted = [...personnel].sort((a, b) => {
+        const aDeliveries = a.totalDeliveries || a.active_deliveries || 0;
+        const bDeliveries = b.totalDeliveries || b.active_deliveries || 0;
+        return bDeliveries - aDeliveries;
+      });
+
+      const top5 = sorted.slice(0, 5).map((courier, index) => {
+        const deliveries = courier.totalDeliveries || courier.active_deliveries || 0;
+        const rating = courier.rating ?? (courier as any).average_rating;
+        const status = courier.status || "Unknown";
+
+        return {
+          id: courier.id,
+          title: courier.name,
+          subtitle: rating != null ? `⭐ ${Number(rating).toFixed(1)} • ${deliveries} Deliveries` : `${deliveries} Deliveries`,
+          value: status,
+          image: (courier as any).avatar || (courier as any).photo || undefined,
+          badge: index === 0 ? "Top Rated" : undefined,
+          badgeColor: index === 0 ? "warning" : undefined,
+        } as WidgetItem;
+      });
+
+      setTopCouriers(top5);
+    }
+  }, [personnel]);
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <WidgetList
       title="Top 5 Couriers"

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -13,12 +13,16 @@ import {
   TextField,
   Grid,
   MenuItem,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   ArrowBack as BackIcon,
   Save as SaveIcon,
   LocalShipping as DeliveryIcon,
 } from "@mui/icons-material";
+import { useDeliveryDetail, useDeliveryPersonnel } from "@/hooks/useDeliveries";
+import axiosInstance from "@/lib/axios";
 
 export default function DeliveryEditPage({
   params,
@@ -29,17 +33,71 @@ export default function DeliveryEditPage({
   const resolvedParams = use(params);
   const { id } = resolvedParams;
   const decodedId = decodeURIComponent(id);
+  const { delivery, loading: loadingDelivery, error: deliveryError } = useDeliveryDetail(decodedId);
+  const { personnel, loading: loadingCouriers } = useDeliveryPersonnel();
 
   const [formData, setFormData] = useState({
-    status: "In Progress",
-    courier: "John Doe",
-    notes: "Handle with care. Fragile items.",
+    status: "",
+    courierId: "",
+    notes: "",
   });
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    console.log("Saving delivery:", formData);
-    router.push(`/deliveries/${encodeURIComponent(decodedId)}`);
+  useEffect(() => {
+    if (delivery) {
+      setFormData({
+        status: delivery.order_status || delivery.status || "Pending",
+        courierId: delivery.deliveryPerson?.id?.toString() || "",
+        notes: "",
+      });
+    }
+  }, [delivery]);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      // Update delivery status and assign courier
+      if (delivery?.id) {
+        if (formData.courierId) {
+          await axiosInstance.post(`delivery/assign/${delivery.id}`, {
+            delivery_person_id: parseInt(formData.courierId),
+          });
+        }
+        if (formData.status) {
+          await axiosInstance.patch(`delivery/status/${delivery.id}`, {
+            status: formData.status,
+          });
+        }
+      }
+      router.push(`/deliveries/${encodeURIComponent(decodedId)}`);
+    } catch (err: any) {
+      console.error("Error saving delivery:", err);
+      alert(err?.response?.data?.message || "Failed to save delivery");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loadingDelivery) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (deliveryError || !delivery) {
+    return (
+      <Box sx={{ flexGrow: 1 }}>
+        <Alert severity="error" sx={{ borderRadius: "16px", mb: 2 }}>
+          {deliveryError || "Delivery not found"}
+        </Alert>
+        <Button onClick={() => router.push("/deliveries")} variant="outlined">
+          Back to Deliveries
+        </Button>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -67,8 +125,9 @@ export default function DeliveryEditPage({
         </Box>
         <Button
           variant="contained"
-          startIcon={<SaveIcon />}
+          startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
           onClick={handleSave}
+          disabled={saving}
           sx={{
             borderRadius: "12px",
             textTransform: "none",
@@ -77,7 +136,7 @@ export default function DeliveryEditPage({
             boxShadow: "none",
           }}
         >
-          Save Changes
+          {saving ? "Saving..." : "Save Changes"}
         </Button>
       </Stack>
 
@@ -125,16 +184,25 @@ export default function DeliveryEditPage({
                   select
                   fullWidth
                   label="Assign Courier"
-                  value={formData.courier}
+                  value={formData.courierId}
                   onChange={(e) =>
-                    setFormData({ ...formData, courier: e.target.value })
+                    setFormData({ ...formData, courierId: e.target.value })
                   }
+                  disabled={loadingCouriers}
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 >
-                  <MenuItem value="John Doe">John Doe</MenuItem>
-                  <MenuItem value="Jane Smith">Jane Smith</MenuItem>
-                  <MenuItem value="Mike Tyson">Mike Tyson</MenuItem>
-                  <MenuItem value="Sarah Connor">Sarah Connor</MenuItem>
+                  <MenuItem value="">Unassigned</MenuItem>
+                  {loadingCouriers ? (
+                    <MenuItem disabled>
+                      <CircularProgress size={20} />
+                    </MenuItem>
+                  ) : (
+                    personnel.map((courier) => (
+                      <MenuItem key={courier.id} value={courier.id.toString()}>
+                        {courier.name}
+                      </MenuItem>
+                    ))
+                  )}
                 </TextField>
               </Stack>
             </CardContent>

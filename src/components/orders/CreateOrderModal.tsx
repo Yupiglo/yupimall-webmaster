@@ -24,21 +24,17 @@ import {
   Delete as DeleteIcon,
   ShoppingCart as CartIcon,
 } from "@mui/icons-material";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import axiosInstance from "@/lib/axios";
+import { CircularProgress, Alert } from "@mui/material";
 
 interface Product {
   id: number;
-  label: string;
+  _id?: string;
+  title?: string;
+  label?: string;
   price: number;
 }
-
-const mockProducts: Product[] = [
-  { id: 1, label: "Classic Leather Jacket", price: 124.5 },
-  { id: 2, label: "Wireless Headphones", price: 89.99 },
-  { id: 3, label: "Smart Watch Series 5", price: 250.0 },
-  { id: 4, label: "Premium Cotton T-Shirt", price: 25.0 },
-  { id: 5, label: "Denim Jeans", price: 55.0 },
-];
 
 interface OrderItem {
   productId: number;
@@ -60,6 +56,36 @@ export default function CreateOrderModal({
     { productId: 0, quantity: 1 },
   ]);
   const [confirmed, setConfirmed] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      fetchProducts();
+    }
+  }, [open]);
+
+  const fetchProducts = async () => {
+    try {
+      setLoadingProducts(true);
+      setProductsError(null);
+      const response = await axiosInstance.get("products", { params: { limit: 100 } });
+      const data = response.data?.getAllProducts || response.data?.products || response.data?.data || [];
+      const normalizedProducts = (Array.isArray(data) ? data : []).map((p: any) => ({
+        id: p._id || p.id,
+        title: p.title,
+        label: p.title,
+        price: p.price || 0,
+      }));
+      setProducts(normalizedProducts);
+    } catch (err: any) {
+      console.error("Error fetching products:", err);
+      setProductsError(err?.response?.data?.message || "Failed to load products");
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
 
   const handleAddItem = () => {
     setItems([...items, { productId: 0, quantity: 1 }]);
@@ -82,10 +108,10 @@ export default function CreateOrderModal({
 
   const totalAmount = useMemo(() => {
     return items.reduce((sum, item) => {
-      const product = mockProducts.find((p) => p.id === item.productId);
+      const product = products.find((p) => p.id === item.productId);
       return sum + (product ? product.price * item.quantity : 0);
     }, 0);
-  }, [items]);
+  }, [items, products]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,10 +182,13 @@ export default function CreateOrderModal({
       <form onSubmit={handleSubmit}>
         <DialogContent sx={{ p: 4, pt: 1 }}>
           <Stack spacing={3}>
+            {productsError && (
+              <Alert severity="error">{productsError}</Alert>
+            )}
             {/* Customer & Description */}
             <TextField
               label="Customer Name"
-              placeholder="e.g. John Doe"
+              placeholder="Nom du client"
               fullWidth
               required
               value={customer}
@@ -211,13 +240,22 @@ export default function CreateOrderModal({
                         }}
                       >
                         <MenuItem value="" disabled>
-                          Select a product
+                          {loadingProducts ? "Loading products..." : "Select a product"}
                         </MenuItem>
-                        {mockProducts.map((product) => (
-                          <MenuItem key={product.id} value={product.id}>
-                            {product.label} (${product.price.toFixed(2)})
+                        {loadingProducts ? (
+                          <MenuItem disabled>
+                            <CircularProgress size={20} sx={{ mr: 1 }} />
+                            Loading...
                           </MenuItem>
-                        ))}
+                        ) : products.length === 0 ? (
+                          <MenuItem disabled>No products available</MenuItem>
+                        ) : (
+                          products.map((product) => (
+                            <MenuItem key={product.id} value={product.id}>
+                              {product.label || product.title} (${product.price.toFixed(2)})
+                            </MenuItem>
+                          ))
+                        )}
                       </TextField>
                     </Grid>
                     <Grid size={{ xs: 3 }}>

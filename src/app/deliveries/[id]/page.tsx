@@ -13,6 +13,8 @@ import {
   Chip,
   Divider,
   Grid,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   ArrowBack as BackIcon,
@@ -26,17 +28,7 @@ import {
 
 import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
-
-const deliveries = [
-  {
-    id: "#DEL-4412",
-    orderId: "#ORD-9921",
-    courier: "John Doe",
-    status: "In Progress",
-    timeWindow: "2:00 PM - 4:00 PM",
-    address: "123 Main St, New York, NY",
-  },
-];
+import { useDeliveryDetail } from "@/hooks/useDeliveries";
 
 export default function DeliveryDetailPage({
   params,
@@ -48,6 +40,7 @@ export default function DeliveryDetailPage({
   const resolvedParams = use(params);
   const { id } = resolvedParams;
   const decodedId = decodeURIComponent(id);
+  const { delivery, loading, error } = useDeliveryDetail(decodedId);
 
   useEffect(() => {
     if (searchParams.get("print") === "true") {
@@ -55,8 +48,34 @@ export default function DeliveryDetailPage({
     }
   }, [searchParams]);
 
-  // Mock finding delivery by ID
-  const delivery = deliveries.find((d) => d.id === decodedId) || deliveries[0];
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error || !delivery) {
+    return (
+      <Box sx={{ flexGrow: 1 }}>
+        <Alert severity="error" sx={{ borderRadius: "16px", mb: 2 }}>
+          {error || "Delivery not found"}
+        </Alert>
+        <Button onClick={() => router.push("/deliveries")} variant="outlined">
+          Back to Deliveries
+        </Button>
+      </Box>
+    );
+  }
+
+  const deliveryId = delivery.id ? `#DEL-${delivery.id}` : delivery.tracking_code || "N/A";
+  const orderId = delivery.tracking_code ? `#ORD-${delivery.tracking_code}` : delivery.orderId || "N/A";
+  const courier = delivery.deliveryPerson?.name || delivery.courier || "Unassigned";
+  const status = delivery.order_status || delivery.status || "Unknown";
+  const address = delivery.shipping_address || delivery.address || delivery.shipping_city || "N/A";
+  const date = delivery.created_at || delivery.date;
+  const timeWindow = date ? new Date(date).toLocaleTimeString() : "N/A";
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -125,7 +144,7 @@ export default function DeliveryDetailPage({
                       Delivery ID
                     </Typography>
                     <Typography variant="body2" fontWeight="bold">
-                      {delivery.id}
+                      {deliveryId}
                     </Typography>
                   </Stack>
                   <Stack direction="row" justifyContent="space-between">
@@ -133,7 +152,7 @@ export default function DeliveryDetailPage({
                       Status
                     </Typography>
                     <Chip
-                      label={delivery.status}
+                      label={status}
                       size="small"
                       color="primary"
                       sx={{ fontWeight: "bold", borderRadius: "6px" }}
@@ -150,7 +169,7 @@ export default function DeliveryDetailPage({
                         Destination
                       </Typography>
                       <Typography variant="body2" fontWeight="medium">
-                        {delivery.address}
+                        {address}
                       </Typography>
                     </Box>
                   </Stack>
@@ -183,7 +202,7 @@ export default function DeliveryDetailPage({
                   fontWeight="bold"
                   color="primary.main"
                 >
-                  {delivery.orderId}
+                  {orderId}
                 </Typography>
                 <Button
                   fullWidth
@@ -192,7 +211,7 @@ export default function DeliveryDetailPage({
                   sx={{ mt: 1.5, borderRadius: "8px", textTransform: "none" }}
                   onClick={() =>
                     router.push(
-                      `/orders/${encodeURIComponent(delivery.orderId)}`
+                      `/orders/${encodeURIComponent(delivery.tracking_code || delivery.orderId || "")}`
                     )
                   }
                 >
@@ -237,15 +256,17 @@ export default function DeliveryDetailPage({
                         Assigned Courier
                       </Typography>
                       <Typography variant="body2" fontWeight="bold">
-                        {delivery.courier}
+                        {courier}
                       </Typography>
-                      <Button
-                        size="small"
-                        sx={{ p: 0, mt: 0.5, textTransform: "none" }}
-                        onClick={() => router.push("/couriers")}
-                      >
-                        View Courier
-                      </Button>
+                      {delivery.deliveryPerson?.id && (
+                        <Button
+                          size="small"
+                          sx={{ p: 0, mt: 0.5, textTransform: "none" }}
+                          onClick={() => router.push(`/couriers/${delivery.deliveryPerson?.id}`)}
+                        >
+                          View Courier
+                        </Button>
+                      )}
                     </Box>
                   </Stack>
                 </Grid>
@@ -264,10 +285,10 @@ export default function DeliveryDetailPage({
                     <TimeIcon color="primary" />
                     <Box>
                       <Typography variant="caption" color="text.secondary">
-                        Time Window
+                        Created Date
                       </Typography>
                       <Typography variant="body2" fontWeight="bold">
-                        {delivery.timeWindow}
+                        {date ? new Date(date).toLocaleString() : "N/A"}
                       </Typography>
                     </Box>
                   </Stack>

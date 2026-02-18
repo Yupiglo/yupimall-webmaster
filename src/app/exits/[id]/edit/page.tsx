@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
   Box,
   Typography,
@@ -13,33 +13,101 @@ import {
   TextField,
   Grid,
   MenuItem,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   ArrowBack as BackIcon,
   Save as SaveIcon,
   Output as ExitIcon,
 } from "@mui/icons-material";
+import axiosInstance from "@/lib/axios";
 
-export default function ExitEditPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+interface StockExitDetail {
+  id: number;
+  quantity: number;
+  reason: string;
+  notes: string | null;
+  product?: { title: string };
+}
+
+export default function ExitEditPage() {
   const router = useRouter();
-  const resolvedParams = use(params);
-  const { id } = resolvedParams;
-  const decodedId = decodeURIComponent(id);
+  const params = useParams();
+  const id = params?.id ? decodeURIComponent(String(params.id)) : "";
+  const decodedId = id;
 
+  const [exit, setExit] = useState<StockExitDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
-    status: "Delivered",
-    quantity: "12",
-    notes: "Direct delivery to customer.",
+    quantity: "",
+    notes: "",
+    reason: "sale",
   });
 
-  const handleSave = () => {
-    console.log("Saving exit:", formData);
-    router.push(`/exits/${encodeURIComponent(decodedId)}`);
+  useEffect(() => {
+    if (!id) return;
+    const fetchExit = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await axiosInstance.get(`stock/exits/${id}`);
+        const data = response.data?.data ?? response.data;
+        setExit(data);
+        if (data) {
+          setFormData({
+            quantity: String(data.quantity ?? ""),
+            notes: data.notes ?? "",
+            reason: data.reason ?? "sale",
+          });
+        }
+      } catch (err: any) {
+        setError(err?.response?.data?.message || "Failed to load stock exit");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchExit();
+  }, [id]);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      await axiosInstance.put(`stock/exits/${decodedId}`, {
+        quantity: parseInt(formData.quantity, 10) || 0,
+        notes: formData.notes || null,
+        reason: formData.reason,
+      });
+      router.push(`/exits/${encodeURIComponent(decodedId)}`);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to save exit");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error && !exit) {
+    return (
+      <Box sx={{ flexGrow: 1 }}>
+        <Alert severity="error" sx={{ borderRadius: "16px", mb: 2 }}>
+          {error}
+        </Alert>
+        <Button onClick={() => router.push("/exits")} variant="outlined">
+          Back to Exits
+        </Button>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -65,8 +133,9 @@ export default function ExitEditPage({
         </Box>
         <Button
           variant="contained"
-          startIcon={<SaveIcon />}
+          startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
           onClick={handleSave}
+          disabled={saving}
           sx={{
             borderRadius: "12px",
             textTransform: "none",
@@ -105,17 +174,18 @@ export default function ExitEditPage({
                 <TextField
                   select
                   fullWidth
-                  label="Exit Status"
-                  value={formData.status}
+                  label="Exit Reason"
+                  value={formData.reason}
                   onChange={(e) =>
-                    setFormData({ ...formData, status: e.target.value })
+                    setFormData({ ...formData, reason: e.target.value })
                   }
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 >
-                  <MenuItem value="Delivered">Delivered</MenuItem>
-                  <MenuItem value="In Transit">In Transit</MenuItem>
-                  <MenuItem value="Pending">Pending</MenuItem>
-                  <MenuItem value="Cancelled">Cancelled</MenuItem>
+                  <MenuItem value="sale">Sale</MenuItem>
+                  <MenuItem value="damaged">Damaged</MenuItem>
+                  <MenuItem value="expired">Expired</MenuItem>
+                  <MenuItem value="returned">Returned</MenuItem>
+                  <MenuItem value="other">Other</MenuItem>
                 </TextField>
                 <TextField
                   fullWidth

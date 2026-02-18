@@ -1,7 +1,7 @@
 "use client";
 
-import { use } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   Box,
   Typography,
@@ -13,6 +13,8 @@ import {
   Chip,
   Divider,
   Grid,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   ArrowBack as BackIcon,
@@ -23,33 +25,48 @@ import {
   CalendarToday as DateIcon,
   Layers as QtyIcon,
 } from "@mui/icons-material";
+import axiosInstance from "@/lib/axios";
 
-import { useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+interface StockExitDetail {
+  id: number;
+  product_id?: number;
+  quantity: number;
+  reason: string;
+  notes: string | null;
+  created_at: string;
+  product?: {
+    id: number;
+    title: string;
+    sku?: string;
+  };
+  user?: {
+    id: number;
+    name: string;
+  };
+  order?: {
+    id: number;
+    tracking_code: string;
+    shipping_name?: string;
+  };
+}
 
-const exits = [
-  {
-    id: "#EXT-001",
-    product: "Classic Leather Jacket",
-    sku: "JKT-001",
-    quantity: 12,
-    destination: "John Doe (Downtown)",
-    date: "Oct 26, 2025, 11:45 AM",
-    status: "Delivered",
-    notes: "Direct delivery to customer.",
-  },
-];
+const reasonLabels: Record<string, string> = {
+  sale: "Sale",
+  damaged: "Damaged",
+  expired: "Expired",
+  returned: "Returned",
+  other: "Other",
+};
 
-export default function ExitDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function ExitDetailPage() {
   const router = useRouter();
+  const params = useParams();
   const searchParams = useSearchParams();
-  const resolvedParams = use(params);
-  const { id } = resolvedParams;
-  const decodedId = decodeURIComponent(id);
+  const id = params?.id ? decodeURIComponent(String(params.id)) : "";
+
+  const [exit, setExit] = useState<StockExitDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (searchParams.get("print") === "true") {
@@ -57,7 +74,63 @@ export default function ExitDetailPage({
     }
   }, [searchParams]);
 
-  const exit = exits.find((e) => e.id === decodedId) || exits[0];
+  useEffect(() => {
+    if (!id) return;
+
+    const fetchExit = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await axiosInstance.get(`stock/exits/${id}`);
+        const data = response.data?.data ?? response.data;
+        setExit(data);
+      } catch (err: any) {
+        console.error("Error fetching exit:", err);
+        setError(err?.response?.data?.message || "Failed to load stock exit");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchExit();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error || !exit) {
+    return (
+      <Box sx={{ flexGrow: 1 }}>
+        <Alert severity="error" sx={{ borderRadius: "16px", mb: 2 }}>
+          {error || "Exit not found"}
+        </Alert>
+        <Button onClick={() => router.push("/exits")} variant="outlined">
+          Back to Exits
+        </Button>
+      </Box>
+    );
+  }
+
+  const exitId = `#${exit.id}`;
+  const productName = exit.product?.title || "Unknown Product";
+  const sku = exit.product?.sku || `ID-${exit.product_id || exit.id}`;
+  const destination =
+    exit.order?.shipping_name || exit.user?.name || "—";
+  const formattedDate = exit.created_at
+    ? new Date(exit.created_at).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "N/A";
+  const statusLabel = reasonLabels[exit.reason] || exit.reason || "Other";
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -126,7 +199,7 @@ export default function ExitDetailPage({
                       Exit ID
                     </Typography>
                     <Typography variant="body2" fontWeight="bold">
-                      {exit.id}
+                      {exitId}
                     </Typography>
                   </Stack>
                   <Stack direction="row" justifyContent="space-between">
@@ -134,7 +207,7 @@ export default function ExitDetailPage({
                       Status
                     </Typography>
                     <Chip
-                      label={exit.status}
+                      label={statusLabel}
                       size="small"
                       color="success"
                       sx={{ fontWeight: "bold", borderRadius: "6px" }}
@@ -148,7 +221,7 @@ export default function ExitDetailPage({
                         Destination
                       </Typography>
                       <Typography variant="body2" fontWeight="medium">
-                        {exit.destination}
+                        {destination}
                       </Typography>
                     </Box>
                   </Stack>
@@ -177,10 +250,10 @@ export default function ExitDetailPage({
                   </Typography>
                 </Stack>
                 <Typography variant="body1" fontWeight="bold">
-                  {exit.product}
+                  {productName}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  SKU: {exit.sku}
+                  SKU: {sku}
                 </Typography>
                 <Stack
                   direction="row"
@@ -237,7 +310,7 @@ export default function ExitDetailPage({
                   <Stack direction="row" spacing={1} alignItems="center">
                     <DateIcon fontSize="small" color="action" />
                     <Typography variant="body1" fontWeight="medium">
-                      {exit.date}
+                      {formattedDate}
                     </Typography>
                   </Stack>
                 </Box>
@@ -259,7 +332,9 @@ export default function ExitDetailPage({
                       borderColor: "divider",
                     }}
                   >
-                    <Typography variant="body2">{exit.notes}</Typography>
+                    <Typography variant="body2">
+                      {exit.notes || "—"}
+                    </Typography>
                   </Box>
                 </Box>
               </Stack>

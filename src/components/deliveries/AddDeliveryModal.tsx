@@ -11,26 +11,25 @@ import {
   MenuItem,
   Typography,
   IconButton,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axiosInstance from "@/lib/axios";
+import { useDeliveryPersonnel } from "@/hooks/useDeliveries";
 
 interface AddDeliveryModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-const mockOrders = [
-  { id: "#ORD-9921", customer: "Alice Johnson" },
-  { id: "#ORD-9920", customer: "Mark Spencer" },
-  { id: "#ORD-9919", customer: "Elena Gomez" },
-];
-
-const mockCouriers = [
-  { id: 1, name: "John Doe" },
-  { id: 2, name: "Jane Smith" },
-  { id: 3, name: "Mike Tyson" },
-];
+interface Order {
+  id: string;
+  tracking_code?: string;
+  shipping_name?: string;
+  shipping_address?: string;
+}
 
 export default function AddDeliveryModal({
   open,
@@ -42,6 +41,31 @@ export default function AddDeliveryModal({
     address: "",
     notes: "",
   });
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const { personnel, loading: loadingCouriers, error: couriersError } = useDeliveryPersonnel();
+
+  useEffect(() => {
+    if (open) {
+      fetchOrders();
+    }
+  }, [open]);
+
+  const fetchOrders = async () => {
+    try {
+      setLoadingOrders(true);
+      setOrdersError(null);
+      const response = await axiosInstance.get("orders/all");
+      const data = response.data?.orders || response.data?.data || [];
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      console.error("Error fetching orders:", err);
+      setOrdersError(err?.response?.data?.message || "Failed to load orders");
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +104,9 @@ export default function AddDeliveryModal({
       <form onSubmit={handleSubmit}>
         <DialogContent sx={{ p: 4, pt: 1 }}>
           <Stack spacing={3}>
+            {ordersError && (
+              <Alert severity="error">{ordersError}</Alert>
+            )}
             <TextField
               select
               label="Select Order"
@@ -89,15 +116,32 @@ export default function AddDeliveryModal({
               onChange={(e) =>
                 setFormData({ ...formData, orderId: e.target.value })
               }
+              disabled={loadingOrders}
               sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
             >
-              {mockOrders.map((order) => (
-                <MenuItem key={order.id} value={order.id}>
-                  {order.id} - {order.customer}
+              {loadingOrders ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  Loading orders...
                 </MenuItem>
-              ))}
+              ) : orders.length === 0 ? (
+                <MenuItem disabled>No orders available</MenuItem>
+              ) : (
+                orders.map((order) => {
+                  const orderId = order.tracking_code ? `#ORD-${order.tracking_code}` : order.id;
+                  const customer = order.shipping_name || "Unknown Customer";
+                  return (
+                    <MenuItem key={order.id} value={order.id}>
+                      {orderId} - {customer}
+                    </MenuItem>
+                  );
+                })
+              )}
             </TextField>
 
+            {couriersError && (
+              <Alert severity="error">{couriersError}</Alert>
+            )}
             <TextField
               select
               label="Assign Courier"
@@ -107,13 +151,23 @@ export default function AddDeliveryModal({
               onChange={(e) =>
                 setFormData({ ...formData, courierId: e.target.value })
               }
+              disabled={loadingCouriers}
               sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
             >
-              {mockCouriers.map((courier) => (
-                <MenuItem key={courier.id} value={courier.id}>
-                  {courier.name}
+              {loadingCouriers ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  Loading couriers...
                 </MenuItem>
-              ))}
+              ) : personnel.length === 0 ? (
+                <MenuItem disabled>No couriers available</MenuItem>
+              ) : (
+                personnel.map((courier) => (
+                  <MenuItem key={courier.id} value={courier.id}>
+                    {courier.name}
+                  </MenuItem>
+                ))
+              )}
             </TextField>
 
             <TextField

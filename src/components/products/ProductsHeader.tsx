@@ -39,32 +39,13 @@ interface Subcategory {
   slug?: string;
 }
 
-const bestSellers = [
-  {
-    id: 1,
-    name: "Classic Leather Jacket",
-    sales: 124,
-    growth: "+12.5%",
-    image:
-      "https://images.unsplash.com/photo-1551028150-64b9f398f678?w=100&h=100&fit=crop",
-  },
-  {
-    id: 2,
-    name: "Wireless Headphones",
-    sales: 98,
-    growth: "+8.2%",
-    image:
-      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&h=100&fit=crop",
-  },
-  {
-    id: 3,
-    name: "Smart Watch Series 5",
-    sales: 85,
-    growth: "+15.0%",
-    image:
-      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&h=100&fit=crop",
-  },
-];
+interface BestSeller {
+  id: number | string;
+  name: string;
+  sales: number;
+  growth: string;
+  image?: string;
+}
 
 type ProductsHeaderProps = {
   selectedCategory: string;
@@ -87,9 +68,12 @@ export default function ProductsHeader({
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [loadingSubs, setLoadingSubs] = useState(false);
+  const [bestSellers, setBestSellers] = useState<BestSeller[]>([]);
+  const [loadingBestSellers, setLoadingBestSellers] = useState(false);
 
   useEffect(() => {
     fetchCategories();
+    fetchBestSellers();
   }, []);
 
   useEffect(() => {
@@ -121,6 +105,31 @@ export default function ProductsHeader({
       console.error("Failed to fetch subcategories:", error);
     } finally {
       setLoadingSubs(false);
+    }
+  };
+
+  const fetchBestSellers = async () => {
+    try {
+      setLoadingBestSellers(true);
+      const response = await axiosInstance.get("products", { params: { limit: 10 } });
+      const data = response.data?.getAllProducts || response.data?.products || response.data?.data || [];
+      const products = Array.isArray(data) ? data : [];
+      
+      // Get top 3 products (you can adjust this logic based on your API response)
+      const topProducts = products.slice(0, 3).map((product: any) => ({
+        id: product._id || product.id,
+        name: product.title || "Unknown Product",
+        sales: product.sales_count || product.quantity_sold || 0,
+        growth: product.growth_percent != null ? `+${Number(product.growth_percent).toFixed(1)}%` : "—",
+        image: product.img_cover || product.image || undefined,
+      }));
+      
+      setBestSellers(topProducts);
+    } catch (error) {
+      console.error("Failed to fetch best sellers:", error);
+      setBestSellers([]);
+    } finally {
+      setLoadingBestSellers(false);
     }
   };
 
@@ -204,23 +213,38 @@ export default function ProductsHeader({
           <StarIcon color="warning" fontSize="small" /> Best Selling Products
         </Typography>
         <Grid container spacing={2}>
-          {bestSellers.map((product) => (
-            <Grid key={product.id} size={{ xs: 12, sm: 6, md: 4 }}>
-              <Card
-                variant="outlined"
-                sx={{
-                  borderRadius: "16px",
-                  border: "1px solid",
-                  borderColor: "divider",
-                }}
-              >
-                <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <Avatar
-                      variant="rounded"
-                      src={product.image}
-                      sx={{ width: 48, height: 48, borderRadius: "12px" }}
-                    />
+          {loadingBestSellers ? (
+            <Grid size={{ xs: 12 }}>
+              <Box display="flex" justifyContent="center" p={2}>
+                <CircularProgress />
+              </Box>
+            </Grid>
+          ) : bestSellers.length === 0 ? (
+            <Grid size={{ xs: 12 }}>
+              <Typography variant="body2" color="text.secondary" textAlign="center" p={2}>
+                No best sellers data available
+              </Typography>
+            </Grid>
+          ) : (
+            bestSellers.map((product) => (
+              <Grid key={product.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                <Card
+                  variant="outlined"
+                  sx={{
+                    borderRadius: "16px",
+                    border: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <Avatar
+                        variant="rounded"
+                        src={product.image}
+                        sx={{ width: 48, height: 48, borderRadius: "12px" }}
+                      >
+                        {product.name.charAt(0)}
+                      </Avatar>
                     <Box sx={{ flexGrow: 1 }}>
                       <Typography variant="subtitle2" fontWeight="bold" noWrap>
                         {product.name}
@@ -256,7 +280,8 @@ export default function ProductsHeader({
                 </CardContent>
               </Card>
             </Grid>
-          ))}
+          ))
+          )}
         </Grid>
       </Box>
 

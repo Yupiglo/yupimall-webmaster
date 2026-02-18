@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -13,6 +13,8 @@ import {
   TextField,
   Grid,
   MenuItem,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   ArrowBack as BackIcon,
@@ -20,6 +22,8 @@ import {
   Person as PersonIcon,
   LocalShipping as VehicleIcon,
 } from "@mui/icons-material";
+import { useCourierDetail } from "@/hooks/useDeliveries";
+import axiosInstance from "@/lib/axios";
 
 export default function CourierEditPage({
   params,
@@ -30,19 +34,64 @@ export default function CourierEditPage({
   const resolvedParams = use(params);
   const { id } = resolvedParams;
   const decodedId = decodeURIComponent(id);
+  const { courier, loading, error } = useCourierDetail(decodedId);
 
   const [formData, setFormData] = useState({
-    name: "John Doe",
-    vehicle: "Motorcycle",
-    phone: "+1 555-0201",
-    plate: "ABC-1234",
+    name: "",
+    vehicle: "",
+    phone: "",
     status: "Active",
   });
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    console.log("Saving courier:", formData);
-    router.push(`/couriers/${encodeURIComponent(decodedId)}`);
+  useEffect(() => {
+    if (courier) {
+      setFormData({
+        name: courier.name || "",
+        vehicle: courier.vehicle || "",
+        phone: courier.phone || "",
+        status: courier.status || "Active",
+      });
+    }
+  }, [courier]);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      // Note: Update endpoint may vary based on your API structure
+      // This is a placeholder - adjust based on actual API endpoint
+      if (courier?.id) {
+        await axiosInstance.put(`delivery/personnel/${courier.id}`, formData);
+      }
+      router.push(`/couriers/${encodeURIComponent(decodedId)}`);
+    } catch (err: any) {
+      console.error("Error saving courier:", err);
+      alert(err?.response?.data?.message || "Failed to save courier");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error || !courier) {
+    return (
+      <Box sx={{ flexGrow: 1 }}>
+        <Alert severity="error" sx={{ borderRadius: "16px", mb: 2 }}>
+          {error || "Courier not found"}
+        </Alert>
+        <Button onClick={() => router.push("/couriers")} variant="outlined">
+          Back to Couriers
+        </Button>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -70,8 +119,9 @@ export default function CourierEditPage({
         </Box>
         <Button
           variant="contained"
-          startIcon={<SaveIcon />}
+          startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
           onClick={handleSave}
+          disabled={saving}
           sx={{
             borderRadius: "12px",
             textTransform: "none",
@@ -80,7 +130,7 @@ export default function CourierEditPage({
             boxShadow: "none",
           }}
         >
-          Save Changes
+          {saving ? "Saving..." : "Save Changes"}
         </Button>
       </Stack>
 
@@ -167,7 +217,6 @@ export default function CourierEditPage({
               </Stack>
               <Stack spacing={3}>
                 <TextField
-                  select
                   fullWidth
                   label="Vehicle Type"
                   value={formData.vehicle}
@@ -175,21 +224,7 @@ export default function CourierEditPage({
                     setFormData({ ...formData, vehicle: e.target.value })
                   }
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
-                >
-                  <MenuItem value="Motorcycle">Motorcycle</MenuItem>
-                  <MenuItem value="Van">Van</MenuItem>
-                  <MenuItem value="Car">Car</MenuItem>
-                  <MenuItem value="Bicycle">Bicycle</MenuItem>
-                </TextField>
-                <TextField
-                  fullWidth
-                  label="License Plate"
-                  value={formData.plate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, plate: e.target.value })
-                  }
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
-                  placeholder="ABC-1234"
+                  placeholder="e.g. Motorcycle, Car, Van"
                 />
               </Stack>
             </CardContent>
