@@ -11,6 +11,10 @@ export interface DeliveryPerson {
     vehicle?: string;
     totalDeliveries?: number;
     active_deliveries?: number;
+    rating?: number;
+    average_rating?: number;
+    avatar?: string;
+    photo?: string;
     status: string;
 }
 

@@ -20,7 +20,7 @@ export default function TopCouriers() {
 
       const top5 = sorted.slice(0, 5).map((courier, index) => {
         const deliveries = courier.totalDeliveries || courier.active_deliveries || 0;
-        const rating = courier.rating ?? (courier as any).average_rating;
+        const rating = courier.rating ?? courier.average_rating;
         const status = courier.status || "Unknown";
 
         return {
@@ -28,7 +28,7 @@ export default function TopCouriers() {
           title: courier.name,
           subtitle: rating != null ? `⭐ ${Number(rating).toFixed(1)} • ${deliveries} Deliveries` : `${deliveries} Deliveries`,
           value: status,
-          image: (courier as any).avatar || (courier as any).photo || undefined,
+          image: courier.avatar || courier.photo || undefined,
           badge: index === 0 ? "Top Rated" : undefined,
           badgeColor: index === 0 ? "warning" : undefined,
         } as WidgetItem;
