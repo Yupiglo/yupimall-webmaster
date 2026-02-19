@@ -26,6 +26,7 @@ import {
 import { useState, useEffect } from "react";
 import AddProductModal from "./AddProductModal";
 import axiosInstance from "@/lib/axios";
+import { getImagePath } from "@/helpers/utils/image.utils";
 
 interface Category {
   _id: string;
@@ -121,7 +122,7 @@ export default function ProductsHeader({
         name: product.title || "Unknown Product",
         sales: product.sales_count || product.quantity_sold || 0,
         growth: product.growth_percent != null ? `+${Number(product.growth_percent).toFixed(1)}%` : "—",
-        image: product.img_cover || product.image || undefined,
+        image: getImagePath(product.img_cover || product.imgCover || product.image || product.images?.[0]),
       }));
       
       setBestSellers(topProducts);
@@ -240,7 +241,7 @@ export default function ProductsHeader({
                     <Stack direction="row" spacing={2} alignItems="center">
                       <Avatar
                         variant="rounded"
-                        src={product.image}
+                        src={product.image || "/images/placeholder-pro.jpg"}
                         sx={{ width: 48, height: 48, borderRadius: "12px" }}
                       >
                         {product.name.charAt(0)}
